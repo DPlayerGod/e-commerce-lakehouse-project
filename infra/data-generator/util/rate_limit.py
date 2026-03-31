@@ -7,11 +7,11 @@ from typing import Callable
 
 
 def diurnal_multiplier() -> float:
-    """Return 0.4..1.4 multiplier based on local hour."""
+    """Return 0.4..1.4 multiplier based on local hour (peak 18h-22h)."""
     from datetime import datetime
 
     hour = datetime.now().hour
-    return 0.9 + 0.5 * math.sin((hour - 3) / 24 * 2 * math.pi)
+    return 0.9 + 0.5 * math.sin((hour - 14) / 24 * 2 * math.pi)
 
 
 class TokenBucket:

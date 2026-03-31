@@ -7,7 +7,7 @@ Realistic e-commerce event generator. Simulates orders, payments, and shipments 
 ```
 data-generator/
 ├── main.py                  # Entry point - orchestration
-├── config.py               # Configuration (5 topics, rates, etc)
+├── config.py               # Configuration (6 topics, rates, etc)
 ├── test_local.py           # Local test script (no Kafka needed)
 │
 ├── domain/
@@ -73,6 +73,7 @@ KAFKA_BOOTSTRAP=kafka:9092
 TOPIC_ORDERS=orders.v1
 TOPIC_PAYMENTS=payments.v1
 TOPIC_SHIPMENTS=shipments.v1
+TOPIC_DELIVERIES=delivery-status.v1
 CDC_TOPIC_USERS=demo.public.users
 CDC_TOPIC_PRODUCTS=demo.public.products
 
@@ -94,37 +95,90 @@ P_BAD_RECORD=0.01       # 1% corrupted records
 
 ## 📊 Event Schema
 
-### orders.v1
-```json
+### Example Transaction Flow
+
+**Transaction #1** (No shipment - payment failed)
+```
+📤 [orders.v1] ord_nijh5rubzg
 {
-  "order_id": "ord_xyz",
-  "user_id": "usr_abc", 
-  "product_id": "prd_123",
-  "amount": 245.50,
+  "order_id": "ord_nijh5rubzg",
+  "user_id": "usr_fp5awmv9",
+  "product_id": "prd_lslfir0r",
+  "amount": 181.62,
+  "currency": "EUR",
+  "ts": 1774940477412
+}
+
+📤 [payments.v1] pay_bayfgfo7xk
+{
+  "payment_id": "pay_bayfgfo7xk",
+  "order_id": "ord_nijh5rubzg",
+  "method": "APPLE_PAY",
+  "status": "FAILED",
+  "ts": 1774940478466
+}
+```
+
+**Transaction #2** (Pending payment - no shipment)
+```
+📤 [orders.v1] ord_wnaidadiiw
+{
+  "order_id": "ord_wnaidadiiw",
+  "user_id": "usr_lh20fkgh",
+  "product_id": "prd_lslfir0r",
+  "amount": 628.44,
+  "currency": "GBP",
+  "ts": 1774940477412
+}
+
+📤 [payments.v1] pay_xafjp61kmk
+{
+  "payment_id": "pay_xafjp61kmk",
+  "order_id": "ord_wnaidadiiw",
+  "method": "CARD",
+  "status": "PENDING",
+  "ts": 1774940478514
+}
+```
+
+**Transaction #3** (Full flow: Order → Payment → Shipment → Delivery)
+```
+📤 [orders.v1] ord_tmy0330ysu
+{
+  "order_id": "ord_tmy0330ysu",
+  "user_id": "usr_y4ezcabl",
+  "product_id": "prd_lslfir0r",
+  "amount": 835.58,
   "currency": "USD",
-  "ts": 1711843200000
+  "ts": 1774940477420
 }
-```
 
-### payments.v1
-```json
+📤 [payments.v1] pay_htvaiwf23y
 {
-  "payment_id": "pay_xyz",
-  "order_id": "ord_xyz",
-  "method": "CARD|APPLE_PAY|PAYPAL",
-  "status": "PENDING|SETTLED|FAILED",
-  "ts": 1711843200542
+  "payment_id": "pay_htvaiwf23y",
+  "order_id": "ord_tmy0330ysu",
+  "method": "CARD",
+  "status": "SETTLED",
+  "ts": 1774940477447
 }
-```
 
-### shipments.v1
-```json
+📤 [shipments.v1] shp_q9p2808tgt
 {
-  "shipment_id": "shp_xyz",
-  "order_id": "ord_xyz",
-  "carrier": "UPS|DHL|FEDEX",
-  "eta_days": 3,
-  "ts": 1711843215200
+  "shipment_id": "shp_q9p2808tgt",
+  "order_id": "ord_tmy0330ysu",
+  "carrier": "FEDEX",
+  "eta_days": 2,
+  "ts": 1774940489190
+}
+
+📤 [delivery-status.v1] del_97ce0otx0x
+{
+  "delivery_id": "del_97ce0otx0x",
+  "shipment_id": "shp_q9p2808tgt",
+  "order_id": "ord_tmy0330ysu",
+  "status": "DELIVERED",
+  "reason": "left_at_door",
+  "ts": 1775148559772
 }
 ```
 
@@ -134,14 +188,15 @@ Each `emit()` call generates:
 
 1. **Order** (100%) → `orders.v1`
 2. **Payment** (70%) → `payments.v1`
-   - PENDING: 25%
-   - SETTLED: 62.5% ← Most common
-   - FAILED: 12.5%
 3. **Shipment** (60% if SETTLED) → `shipments.v1`
+4. **Delivery Status** (100% if Shipment) → `delivery-status.v1`
+   - DELIVERED: 80% ← Most common (reasons: `customer_home`, `signed`, `left_at_door`)
+   - FAILED: 15% (reasons: `customer_not_home`, `address_unclear`, `weather_delay`, `vehicle_issue`)
+   - RETURNED: 5% (reasons: `customer_refused`, `damaged_in_transit`)
 
 Example outcomes:
 - Order A: Order → PENDING payment → No shipment ❌
-- Order B: Order → SETTLED payment → Shipment ✅
+- Order B: Order → SETTLED payment → Shipment → Delivery Status ✅
 - Order C: Order only → No payment (30% no payment) ❌
 
 ## 💡 Hexagonal Architecture
@@ -194,5 +249,5 @@ kcat -b kafka:9092 -L
 - Reference data (users, products) stored in PostgreSQL
 - CDC (Debezium) captures updates → `demo.public.*` topics
 - Streaming events are mock data from `OrderService`
-- Rate limiting respects hourly patterns (diurnal curve)
+- Rate limiting respects hourly patterns: peak traffic 18h-22h (6 PM-10 PM), lowest traffic around 3 AM
 - 1% of records corrupted for data quality testing
