@@ -1,0 +1,87 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environments
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Environment Variables
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+logs/
+
+# Data & Artifacts
+data/
+output/
+outputs/
+*.csv
+*.parquet
+*.xlsx
+*.xls
+cache/
+
+# Docker
+.docker-sync/
+
+# Secrets & Credentials
+*.key
+*.pem
+*.p8
+*.pfx
+secrets/
+credentials/
+
+# OS
+.DS_Store
+Thumbs.db
+thumbs.db
+
+# Project specific
+.pytest_cache/
+.coverage
+htmlcov/
+site/
+dist/
+build/
+
+# Claude
+CLAUDE.*
+BUG.*
+IMPLEMENTATION.*

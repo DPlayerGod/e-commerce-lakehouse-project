@@ -1,0 +1,205 @@
+version: '3.8'
+
+services:
+  # PostgreSQL - Reference data store
+  postgres:
+    image: postgres:15-alpine
+    container_name: ecommerce-postgres
+    command:
+      - postgres
+      - -c
+      - wal_level=logical
+      - -c
+      - max_wal_senders=10
+      - -c
+      - max_replication_slots=10
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+      POSTGRES_DB: demo
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Zookeeper - Kafka coordination
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: ecommerce-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    healthcheck:
+      test: ["CMD", "echo", "ruok", "|", "nc", "localhost", "2181"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Kafka - Event streaming platform
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: ecommerce-kafka
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_INTERNAL://kafka:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT_INTERNAL
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_LOG_RETENTION_HOURS: 24
+      KAFKA_LOG_SEGMENT_BYTES: 1073741824
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    healthcheck:
+      test: ["CMD", "bash", "-c", "echo '' > /dev/tcp/127.0.0.1/9092"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # Schema Registry - Schema storage and management
+  schema-registry:
+    image: confluentinc/cp-schema-registry:7.5.0
+    container_name: ecommerce-schema-registry
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: kafka:9092
+      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+      SCHEMA_REGISTRY_DEBUG: "true"
+    ports:
+      - "8081:8081"
+    healthcheck:
+      test: ["CMD", "curl", "-i", "http://localhost:8081/subjects"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Debezium - PostgreSQL CDC to Kafka
+  debezium:
+    build:
+      context: ./infra/debezium
+    container_name: ecommerce-debezium
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      schema-registry:
+        condition: service_healthy
+    environment:
+      BOOTSTRAP_SERVERS: kafka:9092
+      GROUP_ID: 1
+      CONFIG_STORAGE_TOPIC: ecommerce.connect.configs
+      OFFSET_STORAGE_TOPIC: ecommerce.connect.offsets
+      STATUS_STORAGE_TOPIC: ecommerce.connect.statuses
+      CONFIG_STORAGE_REPLICATION_FACTOR: 1
+      OFFSET_STORAGE_REPLICATION_FACTOR: 1
+      STATUS_STORAGE_REPLICATION_FACTOR: 1
+      DEBEZIUM_CONNECT_WAIT_ATTEMPTS: 60
+      DEBEZIUM_CONNECT_WAIT_INTERVAL: 5
+    ports:
+      - "8083:8083"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/connectors"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # Optional: Kafka UI for debugging
+  kafka-ui:
+    image: provectuslabs/kafka-ui:v0.7.0
+    container_name: ecommerce-kafka-ui
+    depends_on:
+      - kafka
+      - schema-registry
+    environment:
+      KAFKA_CLUSTERS_0_NAME: ecommerce
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      KAFKA_CLUSTERS_0_SCHEMAREGISTRY: http://schema-registry:8081
+    ports:
+      - "8080:8080"
+
+  # MinIO/S3 - Data Lake Storage
+  minio:
+    image: minio/minio:latest
+    container_name: ecommerce-minio
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # Data Generator - Mock Transaction Data
+  data-generator:
+    build:
+      context: ./infra/data-generator
+    container_name: ecommerce-data-generator
+    environment:
+      KAFKA_BOOTSTRAP: kafka:9092
+      SCHEMA_REGISTRY_URL: http://schema-registry:8081
+      PG_DSN: host=postgres port=5432 dbname=demo user=admin password=admin
+      TARGET_EPS: 40
+      SEED_USERS: 500
+      SEED_PRODUCTS: 200
+      TOPIC_ORDERS: orders.v1
+      TOPIC_PAYMENTS: payments.v1
+      TOPIC_SHIPMENTS: shipments.v1
+      TOPIC_DELIVERIES: delivery-status.v1
+      CDC_TOPIC_USERS: demo.public.users
+      CDC_TOPIC_PRODUCTS: demo.public.products
+      P_ORDER_HAS_PAYMENT: 0.7
+      P_ORDER_HAS_SHIPMENT: 0.6
+      P_BAD_RECORD: 0.01
+      P_UPDATE_USER_INFO: 0.08
+      P_UPDATE_PRODUCT_PRICE: 0.05
+      P_LATE_EVENT: 0.05
+      MAX_LATE_MINUTES: 25
+      P_SHIPMENT_HAS_DELIVERY: 1.0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      schema-registry:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import psycopg2, os; from confluent_kafka.schema_registry import SchemaRegistryClient; pg_dsn = os.getenv('PG_DSN'); sr_url = os.getenv('SCHEMA_REGISTRY_URL'); conn = psycopg2.connect(pg_dsn); conn.close(); sr = SchemaRegistryClient({'url': sr_url}); sr.get_subjects()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  minio_data:
+
+networks:
+  default:
+    name: ecommerce-network
