@@ -164,7 +164,7 @@ services:
       KAFKA_BOOTSTRAP: kafka:9092
       SCHEMA_REGISTRY_URL: http://schema-registry:8081
       PG_DSN: host=postgres port=5432 dbname=demo user=admin password=admin
-      TARGET_EPS: 40
+      TARGET_EPS: 120 
       SEED_USERS: 500
       SEED_PRODUCTS: 200
       TOPIC_ORDERS: orders.v1
