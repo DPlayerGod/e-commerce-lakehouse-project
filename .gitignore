@@ -85,3 +85,5 @@ build/
 CLAUDE.*
 BUG.*
 IMPLEMENTATION_SUMMARY.*
+
+note.txt
