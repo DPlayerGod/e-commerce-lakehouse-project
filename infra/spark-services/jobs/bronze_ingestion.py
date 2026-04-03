@@ -17,7 +17,7 @@ from pyspark.sql import SparkSession, functions as F
 
 from adapters.iceberg import ensure_table, write_stream
 from adapters.kafka import read_stream
-from adapters.minio import apply_minio_s3a_config
+from adapters.minio import apply_minio_s3a_config, ensure_bucket_exists
 from config import (
     BRONZE_TOPICS,
     BRONZE_TABLE,
@@ -253,6 +253,16 @@ def main() -> None:
         ).getOrCreate()
         spark.sparkContext.setLogLevel("WARN")
         LOG.info("✅ Spark session created")
+
+        # Ensure MinIO bucket exists
+        LOG.info("🪣 Ensuring data-lake bucket exists...")
+        ensure_bucket_exists(
+            "data-lake",
+            endpoint=MINIO_ENDPOINT,
+            access_key=MINIO_ACCESS_KEY,
+            secret_key=MINIO_SECRET_KEY,
+        )
+        LOG.info("✅ data-lake bucket ready")
 
         # Ensure tables exist
         LOG.info("📊 Ensuring tables exist...")

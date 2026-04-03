@@ -2,9 +2,41 @@
 from __future__ import annotations
 
 import random
+import time
 from config import Config
 from services.common import HotCache, rid
 from domain.enums import COUNTRIES
+
+
+def set_replica_identity(conn, table_name: str, timeout_s: int = 10) -> None:
+    """Set REPLICA IDENTITY FULL with retry logic."""
+    cur = conn.cursor()
+    start = time.monotonic()
+    
+    while True:
+        try:
+            # Set REPLICA IDENTITY FULL
+            cur.execute(f"ALTER TABLE public.{table_name} REPLICA IDENTITY FULL")
+            conn.commit()
+            
+            # Verify
+            cur.execute(f"SELECT relname, relreplident FROM pg_class WHERE relname='{table_name}'")
+            result = cur.fetchone()
+            replica_ident = result[1] if result else '?'
+            
+            if replica_ident == 'f':
+                print(f"[fakegen] ✅ {table_name} REPLICA IDENTITY set to FULL")
+                break
+            else:
+                print(f"[fakegen] ⚠️  {table_name} REPLICA IDENTITY = {replica_ident}, retrying...")
+                if time.monotonic() - start > timeout_s:
+                    raise Exception(f"Timeout setting REPLICA IDENTITY for {table_name}")
+                time.sleep(0.5)
+        except Exception as e:
+            print(f"[fakegen] ❌ Error setting REPLICA IDENTITY for {table_name}: {e}")
+            raise
+    
+    cur.close()
 
 
 def create_users_table(conn) -> None:
@@ -22,6 +54,9 @@ def create_users_table(conn) -> None:
     """)
     conn.commit()
     cur.close()
+    
+    # Set REPLICA IDENTITY FULL (with retry)
+    set_replica_identity(conn, "users")
 
 
 def create_products_table(conn) -> None:
@@ -40,6 +75,9 @@ def create_products_table(conn) -> None:
     """)
     conn.commit()
     cur.close()
+    
+    # Set REPLICA IDENTITY FULL (with retry)
+    set_replica_identity(conn, "products")
 
 
 def seed_postgres(conn, cfg: Config, cache: HotCache) -> None:
@@ -84,4 +122,22 @@ def seed_postgres(conn, cfg: Config, cache: HotCache) -> None:
     
     print(f"[fakegen] Created {cfg.seed_products} products")
     conn.commit()
+    
+    # Verify and ensure REPLICA IDENTITY FULL
+    print("[fakegen] Verifying REPLICA IDENTITY...")
+    for table_name in ["users", "products"]:
+        cur.execute(f"SELECT relname, relreplident FROM pg_class WHERE relname='{table_name}'")
+        result = cur.fetchone()
+        if result:
+            replica_ident = result[1]
+            if replica_ident == 'f':
+                print(f"[fakegen] ✅ {table_name} REPLICA IDENTITY = FULL")
+            else:
+                print(f"[fakegen] ⚠️  {table_name} REPLICA IDENTITY = {replica_ident}, fixing...")
+                cur.execute(f"ALTER TABLE public.{table_name} REPLICA IDENTITY FULL")
+                conn.commit()
+                cur.execute(f"SELECT relname, relreplident FROM pg_class WHERE relname='{table_name}'")
+                new_result = cur.fetchone()
+                print(f"[fakegen] ✅ {table_name} REPLICA IDENTITY fixed to FULL")
+    
     cur.close()

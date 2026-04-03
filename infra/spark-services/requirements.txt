@@ -4,3 +4,4 @@ confluent-kafka[schema-registry]==2.6.1
 pyarrow==17.0.0
 pandas==2.2.2
 requests==2.31.0
+boto3==1.28.0

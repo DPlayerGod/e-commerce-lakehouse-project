@@ -2,7 +2,7 @@ FROM bitnamilegacy/spark:3.5.6
 
 USER 0
 
-RUN pip install --no-cache-dir pyarrow pandas fastavro confluent-kafka[schema-registry] requests
+RUN pip install --no-cache-dir pyarrow pandas fastavro confluent-kafka[schema-registry] requests boto3
 
 RUN set -eux; \
     mkdir -p "${SPARK_HOME}/jars"; \
