@@ -7,7 +7,7 @@ from confluent_kafka.schema_registry import SchemaRegistryClient
 
 from config import Config
 from adapters.kafka.publisher import KafkaPublisher
-from adapters.kafka.encoder import AvroEncoder
+from adapters.kafka.encoder import AvroEncoder, AvroSerializerImpl
 from adapters.kafka.schemas import (
     ORDERS_SCHEMA,
     PAYMENTS_SCHEMA,
@@ -37,12 +37,22 @@ def build_kafka(config: Config) -> tuple[KafkaPublisher, dict]:
     # Initialize Schema Registry client
     sr_client = SchemaRegistryClient({"url": config.schema_registry})
     
-    # Create encoders for each topic
+    # Create encoders for each topic with dedicated serializers
+    # ✅ Clean: each serializer created once, reused forever
+    # ✅ No double registration: AvroSerializer handles schema registration internally
     encoders = {
-        config.topic_orders: AvroEncoder(sr_client, config.topic_orders, ORDERS_SCHEMA),
-        config.topic_payments: AvroEncoder(sr_client, config.topic_payments, PAYMENTS_SCHEMA),
-        config.topic_shipments: AvroEncoder(sr_client, config.topic_shipments, SHIPMENTS_SCHEMA),
-        config.topic_deliveries: AvroEncoder(sr_client, config.topic_deliveries, DELIVERIES_SCHEMA),
+        config.topic_orders: AvroEncoder(
+            AvroSerializerImpl(sr_client, ORDERS_SCHEMA, config.topic_orders)
+        ),
+        config.topic_payments: AvroEncoder(
+            AvroSerializerImpl(sr_client, PAYMENTS_SCHEMA, config.topic_payments)
+        ),
+        config.topic_shipments: AvroEncoder(
+            AvroSerializerImpl(sr_client, SHIPMENTS_SCHEMA, config.topic_shipments)
+        ),
+        config.topic_deliveries: AvroEncoder(
+            AvroSerializerImpl(sr_client, DELIVERIES_SCHEMA, config.topic_deliveries)
+        ),
     }
     
     return KafkaPublisher(producer), encoders

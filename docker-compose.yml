@@ -142,6 +142,8 @@ services:
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_REGION: ap-southeast-1
+      MINIO_REGION_NAME: ap-southeast-1
     command: server /data --console-address ":9001"
     ports:
       - "9000:9000"
@@ -194,6 +196,92 @@ services:
       timeout: 10s
       retries: 3
       start_period: 90s
+    restart: unless-stopped
+
+  # Spark Standalone Master
+  spark-master:
+    build:
+      context: ./infra/spark-services
+    container_name: ecommerce-spark-master
+    environment:
+      SPARK_MODE: master
+      SPARK_MASTER_HOST: spark-master
+      SPARK_MASTER_PORT: 7077
+      SPARK_MASTER_WEBUI_PORT: 8080
+    ports:
+      - "7077:7077"
+      - "8088:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    profiles: ["spark-ingest"]
+
+  # Spark Standalone Worker
+  spark-worker-1:
+    build:
+      context: ./infra/spark-services
+    container_name: ecommerce-spark-worker-1
+    environment:
+      SPARK_MODE: worker
+      SPARK_MASTER_URL: spark://spark-master:7077
+      SPARK_WORKER_WEBUI_PORT: 8081
+      SPARK_WORKER_MEMORY: 2G
+      SPARK_WORKER_CORES: 2
+    ports:
+      - "8091:8081"
+    depends_on:
+      spark-master:
+        condition: service_healthy
+    profiles: ["spark-ingest"]
+
+  # Spark Job Ingest - Kafka to Iceberg Bronze
+  spark-job-ingest:
+    build:
+      context: ./infra/spark-services
+    container_name: ecommerce-spark-job-ingest
+    profiles: ["spark-ingest"]
+    environment:
+      AWS_REGION: ap-southeast-1
+      AWS_DEFAULT_REGION: ap-southeast-1
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin
+    depends_on:
+      spark-master:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      schema-registry:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    volumes:
+      - ./infra/spark-services:/opt/spark/spark-services
+    command: >
+      spark-submit
+      --master spark://spark-master:7077
+      --deploy-mode client
+      --conf spark.ecommerce.kafka.bootstrap=kafka:9092
+      --conf spark.ecommerce.schema.registry=http://schema-registry:8081
+      --conf spark.driverEnv.AWS_REGION=ap-southeast-1
+      --conf spark.driverEnv.AWS_DEFAULT_REGION=ap-southeast-1
+      --conf spark.driverEnv.AWS_ACCESS_KEY_ID=minioadmin
+      --conf spark.driverEnv.AWS_SECRET_ACCESS_KEY=minioadmin
+      --conf spark.executorEnv.AWS_REGION=ap-southeast-1
+      --conf spark.executorEnv.AWS_DEFAULT_REGION=ap-southeast-1
+      --conf spark.executorEnv.AWS_ACCESS_KEY_ID=minioadmin
+      --conf spark.executorEnv.AWS_SECRET_ACCESS_KEY=minioadmin
+      /opt/spark/spark-services/jobs/bronze_ingestion.py
+      --topics orders.v1,payments.v1,shipments.v1,delivery-status.v1,demo.public.users,demo.public.products
+      --table iceberg.bronze.raw_events
+      --checkpoint s3a://data-lake/checkpoints/bronze/raw_events
+      --dlq-table iceberg.bronze.dlq_raw_events
+      --dlq-checkpoint s3a://data-lake/checkpoints/bronze/dlq_raw_events
+      --starting-offsets latest
+      --trigger-seconds 10
+      --max-offsets-per-trigger 5000
     restart: unless-stopped
 
 volumes:

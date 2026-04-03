@@ -1,0 +1,6 @@
+pyspark==3.5.1
+fastavro==1.9.5
+confluent-kafka[schema-registry]==2.6.1
+pyarrow==17.0.0
+pandas==2.2.2
+requests==2.31.0

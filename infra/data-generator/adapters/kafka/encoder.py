@@ -2,40 +2,59 @@
 from __future__ import annotations
 
 import json
+from abc import ABC, abstractmethod
 from confluent_kafka.schema_registry import SchemaRegistryClient
-from confluent_kafka.schema_registry.schema_registry_client import Schema
-from io import BytesIO
+from confluent_kafka.schema_registry.avro import AvroSerializer
+from confluent_kafka.serialization import SerializationContext, MessageField
+
+
+class Serializer(ABC):
+    """Abstract interface for data serialization."""
+
+    @abstractmethod
+    def serialize(self, data: dict) -> bytes:
+        """Serialize data to bytes."""
+        pass
+
+
+class AvroSerializerImpl(Serializer):
+    """Avro serializer implementation - handles schema registration & serialization."""
+
+    def __init__(self, sr_client: SchemaRegistryClient, schema_dict: dict, topic: str) -> None:
+        """
+        Initialize Avro serializer with schema.
+        
+        Args:
+            sr_client: Schema Registry client (manages registration internally)
+            schema_dict: Schema definition as dictionary
+            topic: Kafka topic name
+        """
+        self._serializer = AvroSerializer(
+            sr_client,
+            json.dumps(schema_dict),
+        )
+        self._ctx = SerializationContext(topic, MessageField.VALUE)
+
+    def serialize(self, data: dict) -> bytes:
+        """Serialize data to Avro bytes.
+        
+        Note: AvroSerializer handles schema registration automatically on first use.
+        """
+        return self._serializer(data, self._ctx)
 
 
 class AvroEncoder:
-    """Encode data to Avro format using Schema Registry."""
+    """Encode data to Avro format (wrapper around Serializer)."""
 
-    def __init__(self, schema_registry_client: SchemaRegistryClient, topic: str, schema_dict: dict) -> None:
-        self.sr_client = schema_registry_client
-        self.topic = topic
-        self.schema_dict = schema_dict
-        self.schema_id = None
-        self._register_schema()
-
-    def _register_schema(self) -> None:
-        """Register schema with Schema Registry."""
-        schema_str = json.dumps(self.schema_dict)
-        subject = f"{self.topic}-value"
-        try:
-            schema = Schema(schema_str, schema_type="AVRO")
-            self.schema_id = self.sr_client.register_schema(subject, schema)
-        except Exception as e:
-            print(f"[avro] ⚠️ Schema registration failed: {e}")
+    def __init__(self, serializer: Serializer) -> None:
+        """
+        Initialize encoder with a serializer.
+        
+        Args:
+            serializer: Serializer implementation (typically AvroSerializerImpl)
+        """
+        self.serializer = serializer
 
     def encode(self, data: dict) -> bytes:
-        """Encode data to Avro bytes."""
-        from confluent_kafka.schema_registry.avro import AvroSerializer
-        from confluent_kafka.serialization import SerializationContext, MessageField
-
-        serializer = AvroSerializer(
-            self.sr_client,
-            json.dumps(self.schema_dict),
-        )
-
-        ctx = SerializationContext(self.topic, MessageField.VALUE)
-        return serializer(data, ctx)
+        """Encode data using the injected serializer."""
+        return self.serializer.serialize(data)
