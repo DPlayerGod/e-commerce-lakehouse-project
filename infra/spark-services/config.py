@@ -17,6 +17,26 @@ BRONZE_TOPICS = [
     "demo.public.products",
 ]
 
+# Topic to Table mapping
+BRONZE_TOPIC_TO_TABLE = {
+    "orders.v1": "iceberg.bronze.bronze_orders",
+    "payments.v1": "iceberg.bronze.bronze_payments",
+    "shipments.v1": "iceberg.bronze.bronze_shipments",
+    "delivery-status.v1": "iceberg.bronze.bronze_delivery_status",
+    "demo.public.users": "iceberg.bronze.bronze_users",
+    "demo.public.products": "iceberg.bronze.bronze_products",
+}
+
+BRONZE_TOPIC_TO_CHECKPOINT = {
+    "orders.v1": "s3a://data-lake/checkpoints/bronze/orders",
+    "payments.v1": "s3a://data-lake/checkpoints/bronze/payments",
+    "shipments.v1": "s3a://data-lake/checkpoints/bronze/shipments",
+    "delivery-status.v1": "s3a://data-lake/checkpoints/bronze/delivery_status",
+    "demo.public.users": "s3a://data-lake/checkpoints/bronze/users",
+    "demo.public.products": "s3a://data-lake/checkpoints/bronze/products",
+}
+
+# Legacy (kept for backward compatibility)
 BRONZE_TABLE = "iceberg.bronze.raw_events"
 BRONZE_CHECKPOINT = "s3a://data-lake/checkpoints/bronze/raw_events"
 

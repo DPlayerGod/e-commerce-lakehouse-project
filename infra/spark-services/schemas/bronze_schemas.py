@@ -1,26 +1,15 @@
-"""Schema definitions for Bronze layer."""
+"""Schema definitions for Bronze layer (Pure Raw - Avro bytes only)."""
 
 from __future__ import annotations
 
+# Pure Raw: Store Avro bytes as-is, no deserialization
 BRONZE_RAW_EVENTS_COLUMNS_SQL = """
-    event_source STRING,
-    event_time TIMESTAMP,
-    schema_id INT,
-    payload_size INT,
-    json_payload STRING,
-    partition INT,
-    offset BIGINT
-"""
-
-# Dead Letter Queue (DLQ) schema - for failed/corrupt records
-BRONZE_DLQ_COLUMNS_SQL = """
     event_source STRING,
     event_time TIMESTAMP,
     partition INT,
     offset BIGINT,
     raw_value BINARY,
-    error_reason STRING,
-    error_timestamp TIMESTAMP
+    processed_at TIMESTAMP
 """
 
 # Topic classification

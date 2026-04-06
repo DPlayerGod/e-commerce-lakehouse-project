@@ -25,18 +25,22 @@ def apply_minio_s3a_config(builder: SparkSession.Builder, *, endpoint: str, acce
 
 def ensure_bucket_exists(bucket_name: str, *, endpoint: str, access_key: str, secret_key: str) -> None:
     """Ensure S3/MinIO bucket exists, create if missing."""
-    # Extract host without http:// prefix
-    if endpoint.startswith("http://"):
-        endpoint = endpoint[7:]
-    if endpoint.startswith("https://"):
-        endpoint = endpoint[8:]
+    # Normalize endpoint URL
+    # Input: "http://minio:9000" or "minio:9000"
+    # Output: "http://minio:9000" (ready for boto3)
+    if not endpoint.startswith("http://") and not endpoint.startswith("https://"):
+        endpoint_url = f"http://{endpoint}"
+    else:
+        endpoint_url = endpoint
+    
+    LOG.info(f"🔗 Connecting to MinIO at {endpoint_url}")
     
     s3_client = boto3.client(
         "s3",
-        endpoint_url=f"http://{endpoint}" if not endpoint.startswith("http") else endpoint,
+        endpoint_url=endpoint_url,
         aws_access_key_id=access_key,
         aws_secret_access_key=secret_key,
-        region_name="us-east-1"  # MinIO default region
+        region_name="us-east-1",  # MinIO default region
     )
     
     try:

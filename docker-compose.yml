@@ -20,6 +20,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U admin"]
@@ -112,6 +113,8 @@ services:
       STATUS_STORAGE_REPLICATION_FACTOR: 1
       DEBEZIUM_CONNECT_WAIT_ATTEMPTS: 60
       DEBEZIUM_CONNECT_WAIT_INTERVAL: 5
+    volumes:
+      - ./infra/debezium/config:/kafka/connectors
     ports:
       - "8083:8083"
     healthcheck:
@@ -263,8 +266,6 @@ services:
       spark-submit
       --master spark://spark-master:7077
       --deploy-mode client
-      --conf spark.ecommerce.kafka.bootstrap=kafka:9092
-      --conf spark.ecommerce.schema.registry=http://schema-registry:8081
       --conf spark.driverEnv.AWS_REGION=ap-southeast-1
       --conf spark.driverEnv.AWS_DEFAULT_REGION=ap-southeast-1
       --conf spark.driverEnv.AWS_ACCESS_KEY_ID=minioadmin
@@ -275,11 +276,7 @@ services:
       --conf spark.executorEnv.AWS_SECRET_ACCESS_KEY=minioadmin
       /opt/spark/spark-services/jobs/bronze_ingestion.py
       --topics orders.v1,payments.v1,shipments.v1,delivery-status.v1,demo.public.users,demo.public.products
-      --table iceberg.bronze.raw_events
-      --checkpoint s3a://data-lake/checkpoints/bronze/raw_events
-      --dlq-table iceberg.bronze.dlq_raw_events
-      --dlq-checkpoint s3a://data-lake/checkpoints/bronze/dlq_raw_events
-      --starting-offsets latest
+      --starting-offsets earliest
       --trigger-seconds 10
       --max-offsets-per-trigger 5000
     restart: unless-stopped

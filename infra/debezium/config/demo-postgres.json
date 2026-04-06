@@ -10,7 +10,7 @@
   "table.include.list": "public.users,public.products",
   "slot.name": "ecommerce_cdc_slot",
   "publication.name": "ecommerce_cdc_pub",
-  "publication.autocreate.mode": "all",
+  "publication.autocreate.mode": "all_tables",
   "snapshot.mode": "initial",
   "schema.refresh.mode": "columns_diff_exclude_unchanged_toast",
   "before.image": "full",
