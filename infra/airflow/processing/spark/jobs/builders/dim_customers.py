@@ -102,9 +102,22 @@ def create_dim_customers_scd2(spark: SparkSession, partition_date: str | None) -
         """
     )
 
+    # Identify which user_ids are completely new to the dimension
+    existing_user_ids = spark.read.table("iceberg.silver.dim_customers").select("user_id").distinct().alias("e")
+    
     win_insert = Window.partitionBy("user_id").orderBy(F.col("source_ts").asc())
     to_insert = (
-        customer_changes.withColumn("valid_from", F.col("source_ts"))
+        customer_changes
+        .alias("new")
+        .join(existing_user_ids, on="user_id", how="left")
+        .withColumn("_rn", F.row_number().over(win_insert))
+        .withColumn(
+            "valid_from",
+            F.when(
+                (F.col("e.user_id").isNull()) & (F.col("_rn") == 1),
+                F.to_timestamp(F.lit("1970-01-01 00:00:00"))
+            ).otherwise(F.col("source_ts"))
+        )
         .withColumn("valid_to", F.lead("source_ts").over(win_insert))
         .withColumn("is_current", F.lead("source_ts").over(win_insert).isNull())
         .withColumn(
