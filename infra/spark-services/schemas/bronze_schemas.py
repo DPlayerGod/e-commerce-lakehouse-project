@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-# Pure Raw: Store Avro bytes as-is, no deserialization
+# Pure Raw: Store Avro bytes as-is
 BRONZE_RAW_EVENTS_COLUMNS_SQL = """
     event_source STRING,
     event_time TIMESTAMP,

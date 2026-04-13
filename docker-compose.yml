@@ -1,7 +1,23 @@
 version: '3.8'
 
+x-airflow-common-env: &airflow-common-env
+  AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+  AIRFLOW__CORE__EXECUTOR: LocalExecutor
+  AIRFLOW__CORE__EXECUTION_API_SERVER_URL: http://airflow-webserver:8080/execution/
+  AIRFLOW__API_AUTH__JWT_SECRET: ecom-airflow-jwt-secret-dev
+  AIRFLOW__API__SECRET_KEY: ecom-airflow-api-secret-dev
+  AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/dags
+  AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "false"
+  AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+  AIRFLOW__CORE__AUTH_MANAGER: airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager
+  AIRFLOW__DATABASE__LOAD_DEFAULT_CONNECTIONS: "false"
+  AIRFLOW__CORE__UNIT_TEST_MODE: "true"
+  AIRFLOW__WEBSERVER__DEFAULT_UI_TIMEZONE: "UTC"
+  AIRFLOW__WEBSERVER__DEFAULT_LANGUAGE: "en"
+  _PIP_ADDITIONAL_REQUIREMENTS: ''
+
 services:
-  # PostgreSQL - Reference data store
+  # PostgreSQL - Reference data store + Airflow metadata DB
   postgres:
     image: postgres:15-alpine
     container_name: ecommerce-postgres
@@ -15,15 +31,16 @@ services:
       - max_replication_slots=10
     environment:
       POSTGRES_USER: admin
-      POSTGRES_PASSWORD: admin
+      POSTGRES_PASSWORD: admin 
       POSTGRES_DB: demo
     ports:
       - "5432:5432"
     volumes:
       - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - ./infra/postgres/airflow-init.sql:/docker-entrypoint-initdb.d/02-airflow.sql
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U admin"]
+      test: ["CMD-SHELL", "pg_isready -U admin -d postgres"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -214,6 +231,8 @@ services:
     ports:
       - "7077:7077"
       - "8088:8080"
+    volumes:
+      - ./infra/spark-services:/opt/spark-services
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080"]
       interval: 15s
@@ -235,6 +254,8 @@ services:
       SPARK_WORKER_CORES: 2
     ports:
       - "8091:8081"
+    volumes:
+      - ./infra/spark-services:/opt/spark-services
     depends_on:
       spark-master:
         condition: service_healthy
@@ -261,7 +282,7 @@ services:
       minio:
         condition: service_healthy
     volumes:
-      - ./infra/spark-services:/opt/spark/spark-services
+      - ./infra/spark-services:/opt/spark-services
     command: >
       spark-submit
       --master spark://spark-master:7077
@@ -274,12 +295,80 @@ services:
       --conf spark.executorEnv.AWS_DEFAULT_REGION=ap-southeast-1
       --conf spark.executorEnv.AWS_ACCESS_KEY_ID=minioadmin
       --conf spark.executorEnv.AWS_SECRET_ACCESS_KEY=minioadmin
-      /opt/spark/spark-services/jobs/bronze_ingestion.py
+      /opt/spark-services/jobs/bronze_ingestion.py
       --topics orders.v1,payments.v1,shipments.v1,delivery-status.v1,demo.public.users,demo.public.products
       --starting-offsets earliest
       --trigger-seconds 10
       --max-offsets-per-trigger 5000
     restart: unless-stopped
+
+
+  # Airflow Scheduler
+  airflow-scheduler:
+    build:
+      context: ./infra/airflow
+      dockerfile: Dockerfile
+    container_name: ecommerce-airflow-scheduler
+    environment:
+      <<: *airflow-common-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./infra/airflow/dags:/opt/airflow/dags
+      - ./infra/airflow/logs:/opt/airflow/logs
+      - ./infra/spark-services:/opt/spark-services
+      - ./infra/airflow/processing/spark/jobs:/opt/spark-services/jobs
+    entrypoint: /entrypoint.sh
+    command: airflow scheduler
+    profiles: ["airflow"]
+    restart: always
+
+  # Airflow API Server (Webserver in Airflow 3.x)
+  airflow-webserver:
+    build:
+      context: ./infra/airflow
+      dockerfile: Dockerfile
+    container_name: ecommerce-airflow-webserver
+    environment:
+      <<: *airflow-common-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      airflow-scheduler:
+        condition: service_started
+    ports:
+      - "8085:8080"
+    volumes:
+      - ./infra/airflow/dags:/opt/airflow/dags
+      - ./infra/airflow/logs:/opt/airflow/logs
+      - ./infra/spark-services:/opt/spark-services
+      - ./infra/airflow/processing/spark/jobs:/opt/spark-services/jobs
+    entrypoint: /entrypoint.sh
+    command: airflow api-server
+    profiles: ["airflow"]
+    restart: always
+
+  # Airflow DAG Processor (Required for Airflow 3.x)
+  airflow-dag-processor:
+    build:
+      context: ./infra/airflow
+      dockerfile: Dockerfile
+    container_name: ecommerce-airflow-dag-processor
+    environment:
+      <<: *airflow-common-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./infra/airflow/dags:/opt/airflow/dags
+      - ./infra/airflow/logs:/opt/airflow/logs
+      - ./infra/spark-services:/opt/spark-services
+      - ./infra/airflow/processing/spark/jobs:/opt/spark-services/jobs
+    entrypoint: /entrypoint.sh
+    command: airflow dag-processor
+    profiles: ["airflow"]
+    restart: always
 
 volumes:
   postgres_data:

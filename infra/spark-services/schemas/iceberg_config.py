@@ -19,18 +19,13 @@ class IcebergConfig:
     """Iceberg table configuration - extensible per-layer."""
     
     # ============ TIME TRAVEL ============
-    # Metadata history retention (days)
-    # Higher = can time-travel further back
+    # Keep snapshots for N days (time-based retention)
     metadata_max_age_days: int = 30
     
-    # Keep how many previous metadata versions
-    # 0 = unlimited, positive = exact count
+    # Keep last N metadata file versions (count-based retention)
     metadata_previous_versions_max: int = 0
     
     # ============ TUNING ============
-    # Target file size in bytes (Iceberg compaction goal)
-    # Smaller = more files, faster query (for streaming)
-    # Larger = fewer files, slower query (for batch)
     target_file_size_bytes: int = 268435456  # 256 MB default
     
     # Compression codec: snappy, gzip, zstd, uncompressed
@@ -38,8 +33,6 @@ class IcebergConfig:
     compression_codec: str = "snappy"
     
     # ============ PARTITIONING ============
-    # Partition spec - will be interpolated into CREATE TABLE
-    # Format: "days(event_time), event_source"
     partition_spec: str = "days(event_time), event_source"
     
     # ============ FORMAT & SCHEMA ============
@@ -118,8 +111,8 @@ class IcebergConfig:
 
 BRONZE_CONFIG = IcebergConfig(
     # Bronze = raw data, high velocity streaming
-    # Keep LONG history for replayability & audit
-    metadata_max_age_days=30,  # 1 month
+    # Keep SHORT history for cost optimization
+    metadata_max_age_days=7,  # 1 week (balance: audit trail vs storage cost)
     metadata_previous_versions_max=100,  # keep ~100 metadata file versions
     
     # Tuning: smaller files for streaming (10-sec batches)
@@ -127,15 +120,9 @@ BRONZE_CONFIG = IcebergConfig(
     target_file_size_bytes=134217728,  # 128 MB (2x smaller than default)
     compression_codec="snappy",
     
-    # ✅ FIXED: Partitioning strategy to avoid small files problem
-    # DO NOT partition by event_source (too many partitions = 86,400 files/day)
-    # Instead: partition by TIME only (day), keep event_source as regular column
-    # Spark will use write.distribution-mode=hash to coalesce writers
     partition_spec="days(event_time)",
     
-    # ✅ Distribution mode for small files handling
-    # hash = multiple writers per partition, Iceberg auto-coalesces files
-    # Prevents 10s trigger from creating hundreds of tiny files
+    # Use hash distribution to allow multiple writers per partition
     distribution_mode="hash",
     
     # No Z-order for Bronze (raw data)
@@ -144,15 +131,3 @@ BRONZE_CONFIG = IcebergConfig(
     # Position deletes for flexibility
     delete_mode="position-deletes",
 )
-"""Bronze = Raw Avro bytes, high velocity ingestion.
-- Keep 90 days history for replayability
-- Smaller files (128MB) for frequent compaction
-- No Z-order (raw data, not optimized)
-- ✅ FIX: Partition by DATE only (not topic) to avoid 86,400 files/day
-- ✅ FIX: Use distribution_mode=hash for auto file coalescing
-
-Rationale:
-  Before: 6 (60sec/min) × 60 × 24 × 10 (topics) = 86,400 files/day ❌
-  After:  6 (60sec/min) × 60 × 24 × 1 (partition) = 8,640 files/day ✅
-  With hash distribution: likely 100-200 files/day after coalescing
-"""
