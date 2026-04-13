@@ -26,14 +26,14 @@ class DeliveryService:
             shipment_ts: Timestamp when shipment was created (ms)
             eta_days: Expected delivery days (1-7)
         
-        Timing: delivery_ts = shipment_ts + (eta_days * 86400000) + random(0-12h)
+        Timing: delivery_ts = shipment_ts + (eta_days * 86400000) + random(0-30h)
         """
         # Calculate when delivery should occur
         # 86400000 ms = 1 day
         delivery_window_start_ms = shipment_ts + (eta_days * 86400000)
         
-        # Add random delay: 0-12 hours after deadline
-        random_delay_ms = random.randint(0, 12 * 3600 * 1000)
+        # Add random delay: 0-30 hours after deadline
+        random_delay_ms = random.randint(0, 30 * 3600 * 1000)
         delivery_ts = delivery_window_start_ms + random_delay_ms
         
         # Pick status (80% DELIVERED, 15% FAILED, 5% RETURNED)
