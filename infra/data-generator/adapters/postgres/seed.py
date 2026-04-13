@@ -119,6 +119,7 @@ def seed_postgres(conn, cfg: Config, cache: HotCache) -> None:
             (product_id, title, category, price)
         )
         cache.products.append(product_id)
+        cache.product_prices[product_id] = price  # Store price for order generation
     
     print(f"[fakegen] Created {cfg.seed_products} products")
     conn.commit()

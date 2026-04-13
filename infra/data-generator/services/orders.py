@@ -48,17 +48,28 @@ class OrderService:
         order_id = rid("ord")
         user_id = self.cache.pick_user()
         product_id = self.cache.pick_product()
-        amount = round(random.uniform(5.0, 900.0), 2)
         trace_id = rid("tr")
 
         if not user_id or not product_id:
             return
+
+        # Get product price from cache
+        price = self.cache.get_product_price(product_id)
+        if price is None:
+            # Default to 0 if product price not found (shouldn't happen in normal scenario)
+            price = 0.0
+        
+        # Generate quantity (1-20)
+        quantity = random.randint(1, 20)
+        # Calculate amount = quantity * price
+        amount = round(quantity * price, 2)
 
         # Step 1: Create ORDER
         order = {
             "order_id": order_id,
             "user_id": user_id,
             "product_id": product_id,
+            "quantity": quantity,
             "amount": amount,
             "currency": random.choice(CURRENCIES),
             "ts": base_ts,
@@ -67,6 +78,7 @@ class OrderService:
         order["order_id"] = ensure_str(order.get("order_id"), order_id)
         order["user_id"] = ensure_str(order.get("user_id"), user_id)
         order["product_id"] = ensure_str(order.get("product_id"), product_id)
+        order["quantity"] = ensure_int(order.get("quantity"), quantity)
         order["amount"] = ensure_float(order.get("amount"), amount)
         order["ts"] = ensure_int(order.get("ts"), base_ts)
 

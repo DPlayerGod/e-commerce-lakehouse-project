@@ -8,6 +8,7 @@ ORDERS_SCHEMA = {
         {"name": "order_id", "type": "string"},
         {"name": "user_id", "type": "string"},
         {"name": "product_id", "type": "string"},
+        {"name": "quantity", "type": "int"},
         {"name": "amount", "type": "double"},
         {"name": "currency", "type": "string"},
         {"name": "ts", "type": "long"},

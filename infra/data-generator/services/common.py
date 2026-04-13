@@ -24,6 +24,7 @@ class HotCache:
     def __init__(self) -> None:
         self.users: Deque[str] = deque(maxlen=1000)
         self.products: Deque[str] = deque(maxlen=1000)
+        self.product_prices: dict = {}  # product_id -> price mapping
         self.orders: Deque[str] = deque(maxlen=3000)
 
     def pick_user(self) -> str:
@@ -37,6 +38,10 @@ class HotCache:
         if not self.products:
             return None
         return random.choice(list(self.products))
+
+    def get_product_price(self, product_id: str) -> float | None:
+        """Get price for product."""
+        return self.product_prices.get(product_id)
 
 
 def ensure_str(v, fallback: str) -> str:

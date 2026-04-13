@@ -71,7 +71,11 @@ def test_order_generation():
     # Seed cache
     print("\n📋 Seeding cache...", flush=True)
     cache.users.extend([rid("usr", 8) for _ in range(10)])
-    cache.products.extend([rid("prd", 8) for _ in range(10)])
+    for _ in range(10):
+        prd_id = rid("prd", 8)
+        cache.products.append(prd_id)
+        # Set random price for this product
+        cache.product_prices[prd_id] = round(random.uniform(10.0, 500.0), 2)
     print(f"   ✅ {len(cache.users)} users")
     print(f"   ✅ {len(cache.products)} products")
 
