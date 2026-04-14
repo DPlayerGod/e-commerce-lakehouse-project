@@ -85,5 +85,26 @@ with DAG(
         verbose=True,
     )
 
+    # ========================================
+    # STAGE 3: Push to ClickHouse (BI Layer)
+    # ========================================
+    push_to_clickhouse = SparkSubmitOperator(
+        task_id="push_marts_to_clickhouse",
+        conn_id=SPARK_CONN_ID,
+        application=os.path.join(SPARK_JOB_BASE, "gold_to_clickhouse.py"),
+        application_args=[
+            "--tables",
+            "mart_sales_overview,mart_customer_lifetime_value",
+            "--partition-date",
+            "{{ ds }}",
+        ],
+        conf=COMMON_CONF,
+        env_vars=ENV_VARS,
+        **SPARK_RESOURCES,
+        verbose=True,
+        do_xcom_push=True,
+        jars="https://repo1.maven.org/maven2/com/clickhouse/clickhouse-jdbc/0.6.4/clickhouse-jdbc-0.6.4-all.jar",
+    )
+    
     # DAG Flow
-    gold_transform >> gold_maintenance
+    gold_transform >> gold_maintenance >> push_to_clickhouse

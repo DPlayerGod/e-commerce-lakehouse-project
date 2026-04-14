@@ -41,7 +41,10 @@ RUN set -eux; \
     curl -fSL -o "${SPARK_HOME}/jars/hadoop-aws-3.3.4.jar" \
         "https://repo1.maven.org/maven2/org/apache/hadoop/hadoop-aws/3.3.4/hadoop-aws-3.3.4.jar"; \
     curl -fSL -o "${SPARK_HOME}/jars/aws-java-sdk-bundle-1.12.791.jar" \
-        "https://repo1.maven.org/maven2/com/amazonaws/aws-java-sdk-bundle/1.12.791/aws-java-sdk-bundle-1.12.791.jar"
+        "https://repo1.maven.org/maven2/com/amazonaws/aws-java-sdk-bundle/1.12.791/aws-java-sdk-bundle-1.12.791.jar"; \
+    curl -fSL -o "${SPARK_HOME}/jars/clickhouse-jdbc-0.6.4-all.jar" \
+        "https://repo1.maven.org/maven2/com/clickhouse/clickhouse-jdbc/0.6.4/clickhouse-jdbc-0.6.4-all.jar"
+
 
 # Copy entrypoint script as root and set permissions
 COPY entrypoint.sh /entrypoint.sh

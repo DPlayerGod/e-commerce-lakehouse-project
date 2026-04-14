@@ -12,7 +12,6 @@ import sys
 
 from pyspark.sql import SparkSession
 
-# Ensure we can import from the same directory and from common utils
 sys.path.insert(0, "/opt/spark-services/jobs")
 
 from builders.gold_marts import (

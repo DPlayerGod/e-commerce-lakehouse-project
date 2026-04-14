@@ -15,6 +15,9 @@ x-airflow-common-env: &airflow-common-env
   AIRFLOW__WEBSERVER__DEFAULT_UI_TIMEZONE: "UTC"
   AIRFLOW__WEBSERVER__DEFAULT_LANGUAGE: "en"
   _PIP_ADDITIONAL_REQUIREMENTS: ''
+  CLICKHOUSE_USER: ${CLICKHOUSE_USER}
+  CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+  CLICKHOUSE_DB: ${CLICKHOUSE_DB}
 
 services:
   # PostgreSQL - Reference data store + Airflow metadata DB
@@ -31,16 +34,17 @@ services:
       - max_replication_slots=10
     environment:
       POSTGRES_USER: admin
-      POSTGRES_PASSWORD: admin 
+      POSTGRES_PASSWORD: admin
       POSTGRES_DB: demo
     ports:
       - "5432:5432"
     volumes:
       - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql
       - ./infra/postgres/airflow-init.sql:/docker-entrypoint-initdb.d/02-airflow.sql
+      - ./infra/postgres/superset-init.sql:/docker-entrypoint-initdb.d/03-superset.sql
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U admin -d postgres"]
+      test: [ "CMD-SHELL", "pg_isready -U admin -d postgres" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -55,7 +59,7 @@ services:
     ports:
       - "2181:2181"
     healthcheck:
-      test: ["CMD", "echo", "ruok", "|", "nc", "localhost", "2181"]
+      test: [ "CMD", "echo", "ruok", "|", "nc", "localhost", "2181" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -81,7 +85,7 @@ services:
       - "9092:9092"
       - "29092:29092"
     healthcheck:
-      test: ["CMD", "bash", "-c", "echo '' > /dev/tcp/127.0.0.1/9092"]
+      test: [ "CMD", "bash", "-c", "echo '' > /dev/tcp/127.0.0.1/9092" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -102,7 +106,7 @@ services:
     ports:
       - "8081:8081"
     healthcheck:
-      test: ["CMD", "curl", "-i", "http://localhost:8081/subjects"]
+      test: [ "CMD", "curl", "-i", "http://localhost:8081/subjects" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -135,7 +139,7 @@ services:
     ports:
       - "8083:8083"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8083/connectors"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8083/connectors" ]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -171,11 +175,33 @@ services:
     volumes:
       - minio_data:/data
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
       interval: 30s
       timeout: 10s
       retries: 5
       start_period: 30s
+
+  # ClickHouse - Analytical Data Store (Target for Gold Marts)
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.3-alpine
+    container_name: ecommerce-clickhouse
+    ports:
+      - "8123:8123"
+      - "9002:9000"
+    environment:
+      - CLICKHOUSE_USER=${CLICKHOUSE_USER}
+      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD}
+      - CLICKHOUSE_DB=${CLICKHOUSE_DB}
+    volumes:
+      - ./infra/clickhouse/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - clickhouse_data:/var/lib/clickhouse
+    healthcheck:
+      test: [ "CMD", "wget", "--spider", "-q", "http://127.0.0.1:8123/ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - default
 
   # Data Generator - Mock Transaction Data
   data-generator:
@@ -186,7 +212,7 @@ services:
       KAFKA_BOOTSTRAP: kafka:9092
       SCHEMA_REGISTRY_URL: http://schema-registry:8081
       PG_DSN: host=postgres port=5432 dbname=demo user=admin password=admin
-      TARGET_EPS: 120 
+      TARGET_EPS: 120
       SEED_USERS: 500
       SEED_PRODUCTS: 200
       TOPIC_ORDERS: orders.v1
@@ -211,7 +237,7 @@ services:
       schema-registry:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c", "import psycopg2, os; from confluent_kafka.schema_registry import SchemaRegistryClient; pg_dsn = os.getenv('PG_DSN'); sr_url = os.getenv('SCHEMA_REGISTRY_URL'); conn = psycopg2.connect(pg_dsn); conn.close(); sr = SchemaRegistryClient({'url': sr_url}); sr.get_subjects()"]
+      test: [ "CMD", "python", "-c", "import psycopg2, os; from confluent_kafka.schema_registry import SchemaRegistryClient; pg_dsn = os.getenv('PG_DSN'); sr_url = os.getenv('SCHEMA_REGISTRY_URL'); conn = psycopg2.connect(pg_dsn); conn.close(); sr = SchemaRegistryClient({'url': sr_url}); sr.get_subjects()" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -234,12 +260,12 @@ services:
     volumes:
       - ./infra/spark-services:/opt/spark-services
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8080" ]
       interval: 15s
       timeout: 5s
       retries: 10
       start_period: 20s
-    profiles: ["spark-ingest"]
+    profiles: [ "spark-ingest" ]
 
   # Spark Standalone Worker
   spark-worker-1:
@@ -259,14 +285,14 @@ services:
     depends_on:
       spark-master:
         condition: service_healthy
-    profiles: ["spark-ingest"]
+    profiles: [ "spark-ingest" ]
 
   # Spark Job Ingest - Kafka to Iceberg Bronze
   spark-job-ingest:
     build:
       context: ./infra/spark-services
     container_name: ecommerce-spark-job-ingest
-    profiles: ["spark-ingest"]
+    profiles: [ "spark-ingest" ]
     environment:
       AWS_REGION: ap-southeast-1
       AWS_DEFAULT_REGION: ap-southeast-1
@@ -284,24 +310,8 @@ services:
     volumes:
       - ./infra/spark-services:/opt/spark-services
     command: >
-      spark-submit
-      --master spark://spark-master:7077
-      --deploy-mode client
-      --conf spark.driverEnv.AWS_REGION=ap-southeast-1
-      --conf spark.driverEnv.AWS_DEFAULT_REGION=ap-southeast-1
-      --conf spark.driverEnv.AWS_ACCESS_KEY_ID=minioadmin
-      --conf spark.driverEnv.AWS_SECRET_ACCESS_KEY=minioadmin
-      --conf spark.executorEnv.AWS_REGION=ap-southeast-1
-      --conf spark.executorEnv.AWS_DEFAULT_REGION=ap-southeast-1
-      --conf spark.executorEnv.AWS_ACCESS_KEY_ID=minioadmin
-      --conf spark.executorEnv.AWS_SECRET_ACCESS_KEY=minioadmin
-      /opt/spark-services/jobs/bronze_ingestion.py
-      --topics orders.v1,payments.v1,shipments.v1,delivery-status.v1,demo.public.users,demo.public.products
-      --starting-offsets earliest
-      --trigger-seconds 10
-      --max-offsets-per-trigger 5000
+      spark-submit --master spark://spark-master:7077 --deploy-mode client --conf spark.driverEnv.AWS_REGION=ap-southeast-1 --conf spark.driverEnv.AWS_DEFAULT_REGION=ap-southeast-1 --conf spark.driverEnv.AWS_ACCESS_KEY_ID=minioadmin --conf spark.driverEnv.AWS_SECRET_ACCESS_KEY=minioadmin --conf spark.executorEnv.AWS_REGION=ap-southeast-1 --conf spark.executorEnv.AWS_DEFAULT_REGION=ap-southeast-1 --conf spark.executorEnv.AWS_ACCESS_KEY_ID=minioadmin --conf spark.executorEnv.AWS_SECRET_ACCESS_KEY=minioadmin /opt/spark-services/jobs/bronze_ingestion.py --topics orders.v1,payments.v1,shipments.v1,delivery-status.v1,demo.public.users,demo.public.products --starting-offsets earliest --trigger-seconds 10 --max-offsets-per-trigger 5000
     restart: unless-stopped
-
 
   # Airflow Scheduler
   airflow-scheduler:
@@ -321,7 +331,7 @@ services:
       - ./infra/airflow/processing/spark/jobs:/opt/spark-services/jobs
     entrypoint: /entrypoint.sh
     command: airflow scheduler
-    profiles: ["airflow"]
+    profiles: [ "airflow" ]
     restart: always
 
   # Airflow API Server (Webserver in Airflow 3.x)
@@ -346,7 +356,7 @@ services:
       - ./infra/airflow/processing/spark/jobs:/opt/spark-services/jobs
     entrypoint: /entrypoint.sh
     command: airflow api-server
-    profiles: ["airflow"]
+    profiles: [ "airflow" ]
     restart: always
 
   # Airflow DAG Processor (Required for Airflow 3.x)
@@ -367,12 +377,57 @@ services:
       - ./infra/airflow/processing/spark/jobs:/opt/spark-services/jobs
     entrypoint: /entrypoint.sh
     command: airflow dag-processor
-    profiles: ["airflow"]
+    profiles: [ "airflow" ]
     restart: always
+
+  # Superset - BI Platform
+  superset:
+    image: apache/superset:4.0.1
+    container_name: ecommerce-superset
+    environment:
+      SUPERSET_SECRET_KEY: "ecommerce-secret-dev-2026"
+      SQLALCHEMY_DATABASE_URI: postgresql://admin:admin@postgres:5432/superset
+      PYTHONPATH: /app/pythonpath
+    volumes:
+      - ./infra/superset/superset_config.py:/app/pythonpath/superset_config.py
+    ports:
+      - "8089:8088"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+    networks:
+      - default
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8088/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Superset Init - One-time setup
+  superset-init:
+    image: apache/superset:4.0.1
+    container_name: ecommerce-superset-init
+    command: >
+      bash -c " pip install clickhouse-connect && superset db upgrade && superset fab create-admin --username admin --firstname Admin --lastname User --email admin@example.com --password admin && superset init "
+    environment:
+      SUPERSET_SECRET_KEY: "ecommerce-secret-dev-2026"
+      SQLALCHEMY_DATABASE_URI: postgresql://admin:admin@postgres:5432/superset
+      PYTHONPATH: /app/pythonpath
+    volumes:
+      - ./infra/superset/superset_config.py:/app/pythonpath/superset_config.py
+    depends_on:
+      superset:
+        condition: service_healthy
+    networks:
+      - default
 
 volumes:
   postgres_data:
   minio_data:
+  clickhouse_data:
+
 
 networks:
   default:

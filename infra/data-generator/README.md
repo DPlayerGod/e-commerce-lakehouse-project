@@ -197,38 +197,7 @@ Each `emit()` call generates:
 Example outcomes:
 - Order A: Order → PENDING payment → No shipment ❌
 - Order B: Order → SETTLED payment → Shipment → Delivery Status ✅
-- Order C: Order only → No payment (30% no payment) ❌
-
-## 💡 Hexagonal Architecture
-
-```
-┌─────────────────────────────┐
-│   services/                 │
-│   (Order/Payment/Shipment)  │
-└──────────┬──────────────────┘
-           │ depends on
-    ┌──────▼────────────┐
-    │   ports/          │
-    │   (Interfaces)    │
-    └──────┬────────────┘
-           │ implemented by
-    ┌──────▼────────────┐
-    │  adapters/        │
-    │  (Kafka/Postgres) │
-    └───────────────────┘
-```
-
-Benefits:
-- Services don't know about Kafka/Postgres
-- Easy to mock for testing
-- Easy to swap adapters
-
-## 📈 Performance
-
-- **Memory:** ~50MB baseline
-- **CPU:** Light (token bucket rate limiting)
-- **Network:** Burst capable Kafka producer
-- **Latency:** <1ms between order → payment → shipment
+- Order C: Order only → No payment ❌
 
 ## 🧪 Testing
 
@@ -250,4 +219,3 @@ kcat -b kafka:9092 -L
 - CDC (Debezium) captures updates → `demo.public.*` topics
 - Streaming events are mock data from `OrderService`
 - Rate limiting respects hourly patterns: peak traffic 18h-22h (6 PM-10 PM), lowest traffic around 3 AM
-- 1% of records corrupted for data quality testing

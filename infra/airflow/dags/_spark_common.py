@@ -19,6 +19,12 @@ _AWS_REGION       = os.getenv("AWS_REGION",         "ap-southeast-1")
 _SPARK_MASTER     = os.getenv("SPARK_MASTER",       "spark://spark-master:7077")
 _WAREHOUSE_PATH   = os.getenv("ICEBERG_WAREHOUSE",  "s3a://data-lake/warehouse")
 
+# Clickhouse Settings
+_CH_HOST         = os.getenv("CLICKHOUSE_HOST",     "ecommerce-clickhouse")
+_CH_USER         = os.getenv("CLICKHOUSE_USER",     "default")
+_CH_PASSWORD     = os.getenv("CLICKHOUSE_PASSWORD", "admin123")
+_CH_DB           = os.getenv("CLICKHOUSE_DB",       "analytics")
+
 
 def _build_base_conf() -> dict[str, str]:
     """Build Spark base config, resolving connection settings from env vars."""
@@ -92,6 +98,10 @@ _ENV_VARS: dict[str, str] = {
     "AWS_ACCESS_KEY_ID": _MINIO_ACCESS_KEY,
     "AWS_SECRET_ACCESS_KEY": _MINIO_SECRET_KEY,
     "MINIO_ENDPOINT": _MINIO_ENDPOINT,
+    "CLICKHOUSE_HOST": _CH_HOST,
+    "CLICKHOUSE_USER": _CH_USER,
+    "CLICKHOUSE_PASSWORD": _CH_PASSWORD,
+    "CLICKHOUSE_DB": _CH_DB,
 }
 
 
