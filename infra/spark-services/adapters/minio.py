@@ -33,7 +33,7 @@ def ensure_bucket_exists(bucket_name: str, *, endpoint: str, access_key: str, se
     else:
         endpoint_url = endpoint
     
-    LOG.info(f"🔗 Connecting to MinIO at {endpoint_url}")
+    LOG.info(f"Connecting to MinIO at {endpoint_url}")
     
     s3_client = boto3.client(
         "s3",
@@ -45,18 +45,18 @@ def ensure_bucket_exists(bucket_name: str, *, endpoint: str, access_key: str, se
     
     try:
         s3_client.head_bucket(Bucket=bucket_name)
-        LOG.info(f"✅ Bucket exists: {bucket_name}")
+        LOG.info(f"Bucket exists: {bucket_name}")
     except ClientError as e:
         error_code = e.response["Error"]["Code"]
         if error_code == "404":
             # Bucket doesn't exist, create it
             try:
                 s3_client.create_bucket(Bucket=bucket_name)
-                LOG.info(f"✅ Created bucket: {bucket_name}")
+                LOG.info(f"Created bucket: {bucket_name}")
             except ClientError as create_err:
-                LOG.error(f"❌ Failed to create bucket {bucket_name}: {create_err}")
+                LOG.error(f"Failed to create bucket {bucket_name}: {create_err}")
                 raise
         else:
-            LOG.error(f"❌ Error checking bucket {bucket_name}: {e}")
+            LOG.error(f"Error checking bucket {bucket_name}: {e}")
             raise
 

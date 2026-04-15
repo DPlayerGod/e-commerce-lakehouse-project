@@ -225,8 +225,8 @@ services:
       P_ORDER_HAS_PAYMENT: 0.7
       P_ORDER_HAS_SHIPMENT: 0.6
       P_BAD_RECORD: 0.01
-      P_UPDATE_USER_INFO: 0.08
-      P_UPDATE_PRODUCT_PRICE: 0.05
+      P_UPDATE_USER_INFO: 0.0008
+      P_UPDATE_PRODUCT_PRICE: 0.0005
       P_LATE_EVENT: 0.05
       MAX_LATE_MINUTES: 25
       P_SHIPMENT_HAS_DELIVERY: 1.0
@@ -406,8 +406,7 @@ services:
       timeout: 10s
       retries: 3
     command: >
-      bash -c "pip install clickhouse-connect &&
-      superset run --host 0.0.0.0 --port 8088 --with-threads --reload --debugger"
+      bash -c "pip install clickhouse-connect && superset run --host 0.0.0.0 --port 8088 --with-threads --reload --debugger"
 
   # Superset Init - One-time setup
   superset-init:

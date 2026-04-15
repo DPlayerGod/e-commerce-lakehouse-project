@@ -39,8 +39,8 @@ class Config:
     p_bad_record: float = float(os.getenv("P_BAD_RECORD", "0.01"))
 
     # DB Updates (CDC triggers)
-    p_update_user_info: float = float(os.getenv("P_UPDATE_USER_INFO", "0.08"))
-    p_update_product_price: float = float(os.getenv("P_UPDATE_PRODUCT_PRICE", "0.05"))
+    p_update_user_info: float = float(os.getenv("P_UPDATE_USER_INFO", "0.0008"))
+    p_update_product_price: float = float(os.getenv("P_UPDATE_PRODUCT_PRICE", "0.0005"))
 
     # Late events
     p_late_event: float = float(os.getenv("P_LATE_EVENT", "0.05"))

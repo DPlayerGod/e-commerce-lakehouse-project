@@ -74,14 +74,10 @@ class IcebergConfig:
             "write.distribution-mode": self.distribution_mode,
         }
         
-        # ✅ FIXED: Time-based snapshot retention (in milliseconds)
-        # Keeps snapshots for metadata_max_age_days
         if self.metadata_max_age_days > 0:
             age_ms = self.metadata_max_age_days * 24 * 3600 * 1000
             props["history.expire.max-snapshot-age-ms"] = str(age_ms)
         
-        # ✅ FIXED: Count-based metadata retention (number of versions to keep)
-        # Separate from time-based: keeps last N metadata file versions
         if self.metadata_previous_versions_max > 0:
             props["write.metadata.previous-versions-max"] = str(
                 self.metadata_previous_versions_max
