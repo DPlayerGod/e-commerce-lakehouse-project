@@ -17,7 +17,7 @@ http://localhost:8085
 
 | Stage | Time | Task | Output |
 |-------|------|------|--------|
-| 1️⃣ **Bronze Compaction** | 01:00-01:15 | Compact 51,840 files → 30/table | 180 files total |
+| 1️⃣ **Bronze Compaction** | 01:00-01:15 | Compact approximately 50k files → approximately 30/table | 180 files total |
 | 2️⃣ **Silver Transform** | 01:15-02:15 | Deserialize Avro + SCD + Star schema | 5 silver tables |
 | 3️⃣ **Maintenance** | 02:15-02:30 | OPTIMIZE + EXPIRE_SNAPSHOTS | Cleanup |
 
