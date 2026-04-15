@@ -194,6 +194,7 @@ services:
       - CLICKHOUSE_DB=${CLICKHOUSE_DB}
     volumes:
       - ./infra/clickhouse/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./infra/clickhouse/users.d:/etc/clickhouse-server/users.d
       - clickhouse_data:/var/lib/clickhouse
     healthcheck:
       test: [ "CMD", "wget", "--spider", "-q", "http://127.0.0.1:8123/ping" ]
@@ -404,6 +405,9 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+    command: >
+      bash -c "pip install clickhouse-connect &&
+      superset run --host 0.0.0.0 --port 8088 --with-threads --reload --debugger"
 
   # Superset Init - One-time setup
   superset-init:
