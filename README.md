@@ -345,7 +345,7 @@ docker-compose --profile spark-ingest --profile airflow up -d
 
 ## References
 
-- [data-forge Architecture](../../../data-forge/docs/architecture.md)
+- [data-forge Architecture](https://github.com/fortiql/data-forge)
 - [Confluent Avro Documentation](https://docs.confluent.io/kafka-clients/python/current/overview.html)
 - [Schema Registry REST API](https://docs.confluent.io/platform/current/schema-registry/serdes-develop/index.html)
 
