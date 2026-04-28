@@ -164,8 +164,6 @@ Ingests streaming data every **10 seconds** using Spark Structured Streaming.
 
 **Characteristics:**
 - Stores raw Avro bytes (NO decoding) for replayability
-- Append-only, no updates or deletes regarding to tables such as `bronze_orders`, `bronze_payments`, `bronze_shipments`, `bronze_delivery_status` 
-- Update-only for CDC tables (`bronze_users`, `bronze_products`) to capture changes
 ---
 
 ### Silver Layer (Batch, Cleansed)
@@ -347,7 +345,7 @@ docker-compose --profile spark-ingest --profile airflow up -d
 
 ## References
 
-- [data-forge Architecture](../../../data-forge/docs/architecture.md)
+- [data-forge Architecture](https://github.com/fortiql/data-forge)
 - [Confluent Avro Documentation](https://docs.confluent.io/kafka-clients/python/current/overview.html)
 - [Schema Registry REST API](https://docs.confluent.io/platform/current/schema-registry/serdes-develop/index.html)
 
